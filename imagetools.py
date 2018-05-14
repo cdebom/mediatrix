@@ -35,21 +35,21 @@
 
 
 import os
-#import pyfits
 import astropy.io.fits as fits
 import numpy as np;
-
-
-
+from scipy import ndimage as ndi
+import sextractor as se
+import math as m
+try:
+    import cv2
+except:
+    print "cv2 not found, the code will support images in fits format only"
 
 
 import sys;
 import logging;
-
-
-from sltools.image import segmentation_ids;
 import astropy.wcs as wcs
-
+from math import sin, cos ,sqrt, fabs, atan, tan 
 # =================================================================================================================
 def cutout( img, hdr=None, coord_unit='pixel', xo=0, yo=0, size_unit='pixel', x_size=0, y_size=0, mask=None ):
     """
@@ -211,6 +211,226 @@ def cutout( img, hdr=None, coord_unit='pixel', xo=0, yo=0, size_unit='pixel', x_
             pass;
 
     return (imagemnova, hdr);
+def segmentation(filename,method,smooth=0.0,threspar=2,args={},**kwargs):
+    if method=='sextractor':
+        segimg,objimg,tbdata,hdr,file_name,area=sex_routine4mediatrix(filename,args=args,**kwargs)
+    else:
+        segimg,objimg,original_img,hdr,file_name,_ids,area=bit_routine4mediatrix(filename, bit_method=method, args=args, sm=smooth,f=threspar, **kwargs)
+    return segimg,objimg,original_img,hdr,file_name,_ids,area     
+
+
+def verify_kwarg(param_name,default_value,kwargs): 
+    if param_name in kwargs.keys():
+        param=kwargs[param_name]
+    else:
+        param=default_value
+    return param
+
+def sex_routine4mediatrix(image_file, args={},**kwargs):
+    preset=verify_kwarg("preset",'HST_Arcs',kwargs)
+    origin_dir=verify_kwarg('origin_dir','',kwargs)
+    destination_dir=verify_kwarg('destination_dir','',kwargs)
+    save_files=verify_kwarg('save_files',False,kwargs)
+    
+    if  (origin_dir!=destination_dir):
+        os.system("cp "+origin_dir+image_file+" "+destination_dir)
+    #preset SLchallengeSpace
+    Dsex = se.run_segobj(origin_dir+image_file,params=['NUMBER','X_IMAGE','Y_IMAGE','A_IMAGE','B_IMAGE', 'ELLIPTICITY','MAG_ISO', 'MAG_AUTO','FLAGS'],args=args,preset='HST_Arcs',quiet=True) 
+    file_name=image_file.split("/")[-1]
+    file_name=file_name.replace(".fits","")
+
+    if  (origin_dir!=destination_dir) and (save_files==True):
+        os.system("cp "+file_name+'_seg.fits'+" "+destination_dir)
+        #print "cp "+file_name+'_seg.fits'+" "+destination_dir
+        os.system("cp "+file_name+'_obj.fits'+" "+destination_dir)
+        os.system("cp "+file_name+'_cat.fit'+" "+destination_dir)
+    
+    Dsex={'SEGMENTATION': os.getcwd()+'/'+file_name+'_seg.fits', 'OBJECTS': os.getcwd()+'/'+file_name+'_obj.fits', 'CATALOG': os.getcwd()+'/'+file_name+'_cat.fit'}
+    
+    try:    
+        segimg =  fits.getdata(Dsex['SEGMENTATION'],ignore_missing_end=True)
+        index_seg=np.where(segimg>1)
+        Area=len(index_seg[0])
+    except:
+        print "SEXTRACTOR FILE IS EMPTY: "+ str(image_file)
+        segimg=np.array([])
+        Area=-1
+    try:
+        objimg, hdr = fits.getdata(Dsex['OBJECTS'], header=True)
+        tbdata = fits.open(Dsex['CATALOG'])[1].data
+    except:
+        print "SEXTRACTOR FILE IS EMPTY: "+ str(image_file)
+        objimg=np.array([])
+        hdr=np.array([])
+        tbdata = np.array([])
+        Area=-1
+
+    os.system("rm "+file_name+'_seg.fits')
+    os.system("rm "+file_name+'_obj.fits')
+    os.system("rm "+file_name+'_cat.fit')
+    return segimg.copy(),objimg.copy(),tbdata,hdr,file_name,Area
+
+def bit_routine4mediatrix(image_file,bit_method='max',sm=0,f=1,args={},**kwargs):
+
+    opt={'increase': 2, 'relative_increase': True,'connected': False,'object_centered':True, 'out_type':'cutout', 'vmin':0 , 'invert':True ,'out_title': 'Mediatrix Decomposition', 'keys_color': "r" ,'alpha': 1 ,'max_level': 1000, 'near_distance': sqrt(2)/2, 'max_level': 1000, 'method':"brightest", 'world_coord': 'False', 'frac': 0.1}
+    opt.update(args)
+    
+    origin_dir=verify_kwarg('origin_dir','',kwargs)
+    destination_dir=verify_kwarg('destination_dir','',kwargs)
+    if opt['out_type']=='cutout':
+        opt['object_centered']=False
+
+    if  (origin_dir!=destination_dir):
+        os.system("cp "+origin_dir+image_file+" "+destination_dir)
+    test_string=image_file.rstrip(".jpg")
+    test_string=test_string.rstrip(".png")
+    test_string=test_string.rstrip(".jpeg")
+    test_string=test_string.rstrip(".tiff")
+    test_string=test_string.rstrip(".gif")
+    if test_string== image_file:
+        original_img, hdr = fits.getdata(origin_dir+image_file, header=True)
+    else:
+        original_img=cv2.imread('testimg.jpg')[:,:,0]
+        # if it is a rgb image takes only the first channel
+        hdr=None
+    #original_img, hdr = fits.getdata(origin_dir+image_file, header=True)
+    if sm>0:
+        sm=fwhm2std(sm)
+        original_img=gauss_convolution_fft(original_img, n_fwhm=4, sigma=sm)
+
+
+    if bit_method=='max':
+        segimg_bool=thres(original_img, frac=f)
+    elif bit_method=='simple':
+        segimg_bool=thres(original_img, thresh=f)
+    else:
+        x=76
+        y=76
+        segimg_bool=thres_std(original_img,f=f)
+    file_name=image_file.split("/")[-1]
+    file_name=file_name.replace(".fits","")
+    segimg=np.zeros(segimg_bool.shape)
+    segimg[segimg_bool]=1
+    index_seg=np.where(segimg==1)
+    Area=len(index_seg[0])
+    _ids=[1]
+    del segimg_bool
+    
+    if Area>0:
+        objimg,hdr=segstamp(segimg=segimg, objID=_ids[0], objimg=original_img, hdr=hdr, \
+        increase=opt['increase'], relative_increase=opt['relative_increase'], \
+        connected=opt['connected'], obj_centered=opt['object_centered'])
+    else:
+        _ids=[]
+        objimg=np.zeros(segimg.shape)
+    fits.writeto(destination_dir+file_name+"_seg.fits",segimg.astype(float),header=None,  overwrite=True)
+    fits.writeto(destination_dir+file_name+"_obj.fits",objimg.astype(float),header=None,  overwrite=True)
+    return segimg.copy(),objimg.copy(),original_img.copy(),hdr,file_name,_ids,Area
+
+
+def thres_std(img, thresh=None, size=9,f=1):
+    """
+    Segment image using a thresholding algorithm
+    """
+    if thresh is None:
+        thresh = Stats.mode(img)
+        thresh += f*np.std(img)
+    #thresh =threshold_otsu(img)
+
+
+    # Take the binary image version "splitted" on the 'thresh' value
+    img_bin = (img > thresh)#threshold_adaptive(img, 41, offset=10)#(img > thresh)
+    
+    # Clean fluctuations
+    img_bin = Cleaner.spurious(img_bin) 
+    
+    # Clean small objects
+    img_bin = Cleaner.small(img_bin,size=9)
+    #for addarc bkg = 40, for paint arcs bkg=9
+    
+    return img_bin
+
+def thres(img, thresh=None, frac=0.1, size=9):
+    """
+    Segment image using a thresholding algorithm
+    """
+    if thresh is None:
+        #print "threshold"
+        #print np.max(img)
+        #print frac
+        thresh = np.max(img)*frac
+        #thresh += np.std(img)
+    
+    # Take the binary image version "splitted" on the 'thresh' value
+    img_bin = (img > thresh)
+    
+    # Clean fluctuations
+    img_bin = Cleaner.spurious(img_bin) # namespace correction by debom
+    
+    # Clean small objects
+    img_bin = Cleaner.small(img_bin,size=9) # namespace correction by debom
+    
+    return img_bin
+
+
+class Distros:
+    """
+    Namespace to group functions computing/returning distributions
+    """
+    @staticmethod
+    def histogram(img,nbins=1000,normed=True):
+        """
+        Return image's histogram
+        """
+        imhist,bins = np.histogram(img.flatten(),bins=nbins,normed=normed)
+        return imhist,bins
+
+    @staticmethod
+    def cdf(img,nbins=1000):
+        """
+        Return the Cumulative Distribution Function of given image
+        """
+        hist,bins = Distros.histogram(img,nbins)
+        imcdf = np.cumsum(hist);
+        imcdf/=imcdf[-1];
+        return imcdf,bins
+
+class Stats:
+    """
+    Namespace to group functions computing statistical values
+    """
+    @staticmethod
+    def mode(img):
+        """
+        Return image's mode value
+        """
+        _hist,bins = Distros.histogram(img)
+        ind = np.argmax(_hist)
+        _mode = bins[ind]
+        return _mode
+
+class Cleaner:
+
+    @staticmethod
+    def spurious(img_bin):
+        # And use (MO) binary opening (erosion + dilation) for cleaning spurious Trues
+        strct = ndi.generate_binary_structure(2,1)
+        img_bin = ndi.binary_opening(img_bin,strct)
+        return img_bin
+
+    @staticmethod
+    def small(img_bin,size=9):
+        # Label each group (Regions==True) of pixels
+        regions,nlbl = ndi.label(img_bin)
+        for i in xrange(1,nlbl+1):
+            inds = np.where(regions==i)
+            if inds[0].size < size:
+                regions[inds] = 0
+        return regions.astype(np.bool)
+
+
+
+
     
 # ---
 # ==========================================================================================

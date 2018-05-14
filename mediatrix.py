@@ -1,11 +1,12 @@
 
 import numpy as np
-from el_geometry import get_extrema_2loops,get_length_c, three_points_to_circle, define_perpendicular_bisector, get_distance_from_line_to_point
-from math import atan
+from el_geometry import get_extrema_2loops,get_length_c, three_points_to_circle, define_perpendicular_bisector, get_distance_from_line_to_point, get_line_point_nearest2point, two_points_to_line
+from math import sin, cos ,sqrt, fabs, atan, tan 
+import imagetools
 import aplpy
 from scipy.optimize import fmin
 import itertools as it
-
+import time
 def filamentation(image, method="medium",alpha=1,near_distance=(sqrt(2)/2), max_level=1000, use_extremes=True):
     """
     Function to perform the mediatrix decomposition method on a given object. 
@@ -31,11 +32,6 @@ def filamentation(image, method="medium",alpha=1,near_distance=(sqrt(2)/2), max_
     key_center=[p1,p2]
     key_center=find_keydots_c(p1,p2,pixels,image,key_center,Area, method=method,alpha=0,near_distance=near_distance,max_level=1,level=0)
     keydots=find_keydots_c(p1,p2,pixels,image,keydots,Area, method=method,alpha=alpha,near_distance=near_distance,max_level=max_level,level=0)
-    #print "key center inside mediatrix"
-    #print key_center
-    #print "regular key center inside mediatrix"
-    #print keydots
-    #print keydots
     L=get_length_c(keydots)
     if use_extremes==False:
         if len(keydots)>3:
@@ -44,8 +40,6 @@ def filamentation(image, method="medium",alpha=1,near_distance=(sqrt(2)/2), max_
         else:
             print "Impossible to reject extremes, too few points" 
     mediatrix_vectors=find_mediatrix_vectors_c(keydots)
-    #mediatrix_vectors['id']=image_name
-    #medium=int(float(len(keydots))/2)
     if len(key_center)>2:
         mediatrix_vectors['center']=key_center[1]
     else:
@@ -54,8 +48,6 @@ def filamentation(image, method="medium",alpha=1,near_distance=(sqrt(2)/2), max_
     W=(len(pixels[0]))/(atan(1)*L)
     mediatrix_vectors['L/W']=L/W
     mediatrix_vectors['L']=L
-    #x=[pixels[0][E1],mediatrix_vectors['center'].real,pixels[0][E2]]
-    #y=[pixels[1][E1],mediatrix_vectors['center'].imag,pixels[1][E2]]
     p1_vec=[pixels[0][E1],pixels[1][E1]] # the extreme points p_1 and p_2
     p2_vec=[pixels[0][E2],pixels[1][E2]]
     p3_vec=[mediatrix_vectors['center'].real,mediatrix_vectors['center'].imag]
@@ -103,8 +95,6 @@ def find_keydots_c(p1,p2,image_pixels,image,keydots,area, method="medium",alpha=
 	
     
     dl=abs(p1-p2)
-    #print "complex"
-    #print dl
     L=get_length_c(keydots)
     W=width_ellipse(L,area)
 
@@ -113,36 +103,16 @@ def find_keydots_c(p1,p2,image_pixels,image,keydots,area, method="medium",alpha=
         p2_r=[p2.real,p2.imag]
         coefficients=define_perpendicular_bisector(p1_r,p2_r)
         p3,p3Flag=choose_near_point_c_vec(coefficients[0],coefficients[1],image_pixels,image,method,near_distance)
-        #p3,p3Flag=choose_near_point_c(coefficients[0],coefficients[1],image_pixels,image,method,near_distance)
-        
-        #print "p3Flag"
-        #print p3Flag
+      
         if (p3Flag==0):
             
             if level==1:	
-                #print "this is the chosen point"
-                #print p3
                 px=p3.real
                 py=p3.imag
                 test_points2=np.array([[px-1,py+1],[px,py+1],[px+1,py+1],[px-1,py],[px,py],[px+1,py],[px-1,py-1],[px,py-1],[px+1,py-1]])
                 Ds=np.apply_along_axis(get_distance_from_line_to_point,1,test_points2,theta=coefficients[0],c=coefficients[1])
                 Ds=np.array(Ds)
-
-                """
-                print "this is the neighbours and its intensities"
-                print "this is the near distance "+str(near_distance)
-                print str(p3.real-1)+' '+str(p3.imag+1)+' '+str(round(image[p3.real-1][p3.imag+1],4))+" "+str(Ds[0])+" up-left" 
-                print str(p3.real)+' '+str(p3.imag+1)+' '+str(round(image[p3.real][p3.imag+1],4))+" "+str(Ds[1])+" up-center"
-                print str(p3.real+1)+' '+str(p3.imag+1)+' '+str(round(image[p3.real+1][p3.imag+1],4))+" "+str(Ds[2])+" up-right"
-                print str(p3.real-1)+' '+str(p3.imag)+' '+str(round(image[p3.real-1][p3.imag],4))+" "+str(Ds[3])+" mid-left"   
-                print str(p3.real)+' '+str(p3.imag)+' '+str(round(image[p3.real][p3.imag],4))+" "+str(Ds[4])+" mid"
-                print str(p3.real+1)+' '+str(p3.imag)+' '+str(round(image[p3.real+1][p3.imag],4))+" "+str(Ds[5])+" mid-right"
-                print str(p3.real-1)+' '+str(p3.imag-1)+' '+str(round(image[p3.real-1][p3.imag-1],4))+" "+str(Ds[6])+" down-left"
-                print str(p3.real)+' '+str(p3.imag-1)+' '+str(round(image[p3.real][p3.imag-1],4))+" "+str(Ds[7])+" down-center"
-                print str(p3.real+1)+' '+str(p3.imag-1)+' '+str(round(image[p3.real+1][p3.imag-1],4))+" "+str(Ds[8])+" down-right"
-                """
-
-                                       
+                                     
 	
             if (not(p3 in keydots)):
                 keydots.insert(indexNext,p3)
@@ -178,7 +148,6 @@ def find_mediatrix_vectors_c(points):
     for t in range(0,len(points)-1):
         p1_r=[points[t].real,points[t].imag]
         p2_r=[points[t+1].real,points[t+1].imag]
-        #print p1_r, p2_r
         coefficients=define_perpendicular_bisector(p1_r,p2_r)
         
         origin=(points[t]+points[t+1])/2.
@@ -188,7 +157,6 @@ def find_mediatrix_vectors_c(points):
 	if(coefficients[0]!=2*atan(1)):
             end1=origin + modulus*(cos(coefficients[0]))+modulus*(sin(coefficients[0]))*1j
             end2=origin - modulus*(cos(coefficients[0]))-modulus*(sin(coefficients[0]))*1j
-            
             
         else:
             end1=origin+modulus*1j
@@ -202,11 +170,10 @@ def find_mediatrix_vectors_c(points):
         else:
             end=end2
 
-        #mediatrix_vector = {'theta': coefficients[0], 'linear_coefficient': coefficients[1], 'origin': origin, 'end': end, 'modulus': modulus }
+
         mediatrix_vectors['origin'].append(origin) 
         mediatrix_vectors['end'].append(end)
-        #vectors.append(mediatrix_vector)
-                
+    
         
     return mediatrix_vectors
 
@@ -216,18 +183,9 @@ def choose_near_point_c_vec(theta,c,object_pixels,image,method,near_distance):
     chosenY=0    
     test_points=np.array(np.transpose(object_pixels))
     
-    #print "this are the Test points"
-    #print test_points
-    #D=get_distance_from_line_to_point(pixel,theta,c)
     Ds=np.apply_along_axis(get_distance_from_line_to_point,1,test_points,theta=theta,c=c)
     Ds=np.array(Ds)
-    #print "this are D min e max"
-    #print np.max(Ds)
-    #print np.median(Ds)
-    #print np.min(Ds)
     near_index=np.where(Ds<=near_distance)
-    #print near_index[0]
-    #print len(near_index[0])
     if len(near_index[0])==0:
         FlagErr=1
     else:    
@@ -235,8 +193,6 @@ def choose_near_point_c_vec(theta,c,object_pixels,image,method,near_distance):
         near_points=test_points[near_index]
         near_points=np.transpose(near_points)
         object_pixels_near=tuple((near_points[0],near_points[1]))
-    
-    
 
     if method=='brightest' and FlagErr==0:
         brights=image[object_pixels_near]
@@ -263,7 +219,7 @@ def choose_near_point_c_vec(theta,c,object_pixels,image,method,near_distance):
 
 
 
-def Evaluate_S_Statistic_on_matrix_c(mediatrix_data,obj_stamp, sigma_out=True,sigma=1,sigma_pre=0.5,Area_out=True):
+def eval_med_stats(mediatrix_data,obj_stamp, sigma_out=True,sigma=1,sigma_pre=0.5,Area_out=True):
 
     """
     Function to calculate the S estatistic measurements.
@@ -281,8 +237,6 @@ def Evaluate_S_Statistic_on_matrix_c(mediatrix_data,obj_stamp, sigma_out=True,si
     theta=[]
     linear=[]
     L=mediatrix_data['L']
-    #print " E o L eh"
-    #print L
     for i in range(0,len(mediatrix_data['origin'])):
        origin=mediatrix_data['origin'][i]
        end=mediatrix_data['end'][i]
@@ -298,15 +252,11 @@ def Evaluate_S_Statistic_on_matrix_c(mediatrix_data,obj_stamp, sigma_out=True,si
     minM_r=fmin(M_function,guess,args=(theta,linear),maxiter=1000, disp=0)
     minM_val=M_function(minM_r,theta,linear)
     minM=minM_r[0]+minM_r[1]*1j
+    S_output={'center_MinM': minM}
     R=abs(mediatrix_data['center']-minM)
-    #print "esse e o ponto em que m eh minima"
-    #print minM
     circle_center=mediatrix_data['circle_params'][0]
-    #print "Este e o centro do circulo"
-    #print circle_center
     center_comparison=abs(circle_center-minM)
     alpha=Find_angle_from_circle_section_c(mediatrix_data['circle_params'][0],mediatrix_data['circle_params'][1],mediatrix_data['circle_params'][2])
-    S_output={'init': 0}
     try: 
         S_output['MinM_norm']=minM_val/(L*L)
     except:
@@ -353,9 +303,7 @@ def Evaluate_S_Statistic_on_matrix_c(mediatrix_data,obj_stamp, sigma_out=True,si
         except:
             print "Impossible to define sigma_lenght for "+str(mediatrix_data['id'])
         sigma_minor_axis=len(sigma_points)/(4*atan(1)*sigma_lenght)
-        #verificar essa eq.
-        #print "Area de sigma, complex"
-        #print sigma_points
+
         try:
             S_output['sigma_exc']=(sigma_lenght)/sigma_minor_axis
         except:
@@ -373,10 +321,8 @@ def Evaluate_S_Statistic_on_matrix_c(mediatrix_data,obj_stamp, sigma_out=True,si
 def M_function(p,theta,b):
     M=0
     for i in range(0,len(theta)):
-        #print "este e o theta real"+str(theta[i])
         aux=get_distance_from_line_to_point(p,theta[i],b[i])
         M=M+(aux*aux)
-        #print aux
     M=M/float(len(theta))
     return M
 
@@ -386,7 +332,6 @@ def M_function_c(p,theta,b):
        
     for i in range(0,len(theta)):
         D=0
-        #print "este e o theta imag"+str(theta[i])
         if(theta[i]!=2*atan(1)) and (theta[i]!=0.):
             
             a=tan(theta[i])
@@ -425,11 +370,6 @@ def find_rc_region_c(region,center,step,lim,theta,linear,minM,sigma):
     Y_search=np.arange(round(center.imag,2)-lim, round(center.imag,2)+lim,step)
     
     search=np.array([])
-    #search_len=len(X_search)*len(Y_search)
-   
-    #for i in range(0,len(X_search)):
-    #    piece=np.repeat(X_search[i],len(Y_search))+Y_search*1j
-    #    search=np.concatenate((piece,search),axis=1)
     len_search=0
     piece=np.repeat(X_search[0],len(Y_search))+Y_search*1j
     search=np.concatenate((piece,search),axis=0)
@@ -447,18 +387,13 @@ def find_rc_region_c(region,center,step,lim,theta,linear,minM,sigma):
     search=np.concatenate((piece,search),axis=0)
     len_search+=len(piece)
 
-    #search_len=len(X_search)*4
     search=np.reshape(search,len_search)
-    #search=np.unique(search)     
     m_values_c=np.apply_along_axis(M_function_c,0,search,theta,linear)
     m_values_c=m_values_c- np.repeat(minM,len(search))
     for i in range(0,len(search)):
             if m_values_c[i]<=sigma:
                region.append(search[i])
-    #print "esse e o tamanho do search"
-    #print len(search)
     if len(region)>ini_region and len(region) < 2000:
-        #print "entrando na recursividade"
         region=find_rc_region_c(region,center,step,lim+step,theta,linear,minM,sigma)
     return region
 
@@ -467,7 +402,7 @@ def find_rc_region_c(region,center,step,lim,theta,linear,minM,sigma):
 
 
 
-def plot_S_Statistic_apl(image_name,_id='',keydots=False,circle=False,rc=True, save=True,out_image='', args={},use_extremes=True):
+def plot_med_stats_apl(image_name,_id='',keydots=False,circle=False,rc=True, save=True,out_image='', args={},use_extremes=True):
     # FIXME to work in world coord==true
     """
     Function to make plot of S estatistic interesting measurements.
@@ -483,9 +418,11 @@ def plot_S_Statistic_apl(image_name,_id='',keydots=False,circle=False,rc=True, s
     opt={'increase': 2, 'relative_increase': True,'connected': False,'object_centered':True, 'out_type':'cutout', 'pmin':0.25 , 'pmax':99.75 , 'invert':True ,'out_title': 'Mediatrix Method', 'keys_color': "r" ,'alpha': 1 ,'max_level': 1000, 'near_distance': sqrt(2)/2, 'max_level': 1000, 'method':"brightest",'sigma':1,'sigma_pre':0.5, 'rc_color': 'm', 'world_coord': 'False'}
     opt.update(args)
      
-    if out_image=='':
+    if out_image=='' and type(image_name)==type('str'):
         out_image=image_name.replace(".fits","")+"_mediatrixS_plot.png"
- 
+    else:
+        out_image="mediatrixS_plot.png"
+
 
     
 
@@ -523,15 +460,12 @@ def plot_S_Statistic_apl(image_name,_id='',keydots=False,circle=False,rc=True, s
 
 
     mediatrix_plot.show_markers(MinM_plot_Y,MinM_plot_X,c='red',marker='.',zorder=2000)
-    #print 'min m'
-    #print MinM_plot_X
-    #print MinM_plot_Y
     lim=round((float(Length)/2.)+5,2)
     sigma_X=[]
     sigma_Y=[]
     ps=[]
     Ms=[]
-    pixels=where(image_ps>0)
+    pixels=np.where(image_ps>0)
     if rc==True:
         X_search=arange(round(MinM[0],2)-lim, round(MinM[0],2)+lim,opt['sigma_pre']*1)
         Y_search=arange(round(MinM[1],2)-lim, round(MinM[1],2)+lim,opt['sigma_pre']*1)
@@ -540,37 +474,22 @@ def plot_S_Statistic_apl(image_name,_id='',keydots=False,circle=False,rc=True, s
         search_aux=[X_search,Y_search]
         test_points=np.array(list(it.product(*search_aux)))
 
-        #print "this are the Test points"
-        #print test_points
-    
         sigma=np.apply_along_axis(M_function,1,test_points, theta=theta,b=linear)
         sigma=np.array(sigma)
         sigma=sigma-MinM_val
-        #print "this are the M_func values"
-        #print sigma
         cr_index=np.where(sigma<1)
         sigma=sigma[cr_index]
         cr_points=test_points[cr_index]
     
-        #print "this are the CR points"
-        #print cr_points
         for k in range(0,len(cr_points)):
             p=cr_points[k]
             mediatrix_plot.show_markers(p[1],p[0],c=opt['rc_color'],marker=".",linewidths='0', zorder=999)
               
 
     if save==True:
-        #xmin, xmax = xlim()
-        #ymin, ymax = ylim()
-        #mediatrix_plot.set_xlim(xmin-1*Length,xmax+1*Length)
-        #mediatrix_plot.set_ylim(ymin-1*Length,ymax+1*Length)
         savefig(out_image)
-        #mediatrix_plot.clear()
         return True
     else:
-        #print " os pixels"
-        #print pixels[0]
-        #print pixels[1] 
         size0=abs(max(pixels[0])-min(pixels[0]))
         size1=abs(max(pixels[1])-min(pixels[1])) 
         return mediatrix_plot, [mediatrix_data['center'].real,mediatrix_data['center'].imag], [MinM[0],MinM[1]],[size0,size1]
@@ -595,19 +514,9 @@ def plot_mediatrixapl(image_name,_id='', keydots=False,circle=True, save=True, o
     """
     opt={'increase': 2, 'relative_increase': True,'connected': False,'object_centered':True, 'out_type':'cutout', 'vmin':0 , 'invert':True ,'out_title': 'Mediatrix Decomposition', 'keys_color': "r" ,'alpha': 1 ,'max_level': 1000, 'near_distance': sqrt(2)/2, 'max_level': 1000, 'method':"brightest", 'world_coord': 'False', 'circle_radius': False, 'bkg_img': ''}
     opt.update(args)
-    
-    
-   
-
-    #image_seg_hdu=fits.open(image_segname)
-    #image_obj_hdu=fits.open(image_objname)
-    
-
 
     if opt['out_type']=='cutout':
         opt['object_centered']=False
-    #else:
-    #    opt['object_centered']=True
     type_arg=type(image_name) is str
     if type_arg:
         if out_image=='':
@@ -615,25 +524,34 @@ def plot_mediatrixapl(image_name,_id='', keydots=False,circle=True, save=True, o
         if _id=='':
             image_ps,hdr=fits.getdata(image_name, header = True )
         else:
-            image_segname=image_name.replace(".fits","")+"_seg.fits"
-            image_objname=image_name.replace(".fits","")+"_obj.fits"
-            image_seg,hdr = fits.getdata(image_segname, header = True )
-            image_obj = fits.getdata(image_objname, header = False )
-            image_ps,hdr=imagetools.segstamp(segimg=image_seg, objID=_id, objimg=image_obj, hdr=hdr, increase=opt['increase'], relative_increase=opt['relative_increase'], connected=opt['connected'], obj_centered=opt['object_centered'])
-            del image_seg
-            del image_obj
-            gc.collect() 
-            image_name_ps=image_name.replace(".fits","")+"_ps.fits"
-            if opt['world_coord']=='True':
-                fits.writeto(image_name_ps,image_ps.astype(float),header=hdr)
-            
+
+            test_string=image_name.rstrip(".jpg")
+            test_string=test_string.rstrip(".png")
+            test_string=test_string.rstrip(".jpeg")
+            test_string=test_string.rstrip(".tiff")
+            test_string=test_string.rstrip(".gif")
+            if test_string== image_file:
+                image_segname=image_name.replace(".fits","")+"_seg.fits"
+                image_objname=image_name.replace(".fits","")+"_obj.fits"
+                image_seg,hdr = fits.getdata(image_segname, header = True )
+                image_obj = fits.getdata(image_objname, header = False )
+                image_ps,hdr=imagetools.segstamp(segimg=image_seg, objID=_id, objimg=image_obj, hdr=hdr, increase=opt['increase'], relative_increase=opt['relative_increase'], connected=opt['connected'], obj_centered=opt['object_centered'])
+                del image_seg
+                del image_obj
+                gc.collect() 
+                image_name_ps=image_name.replace(".fits","")+"_ps.fits"
+                if opt['world_coord']=='True':
+                    fits.writeto(image_name_ps,image_ps.astype(float),header=hdr)
+            else:
+                original_img=cv2.imread('testimg.jpg')[:,:,0]
+                hdr=None
+
     else:
         image_ps=image_name.copy()
         if out_image=='':
             time_id=time.time()
             out_image=str(time_id)+"_mediatrix_plot.png"
  
-    #image_ps,hdr=imcp.segstamp(segimg=image_seg, objID=_ids[i], objimg=image_obj, hdr=hdr, increase=2, relative_increase=True, connected=False, obj_centered=True)
 
     mediatrix_data=filamentation(image_ps, method=opt['method'],alpha=opt['alpha'],near_distance=opt['near_distance'],max_level=opt['max_level'], use_extremes=use_extremes) 
     
@@ -642,13 +560,7 @@ def plot_mediatrixapl(image_name,_id='', keydots=False,circle=True, save=True, o
     else:
         img=image_ps.copy()
 
-    #print "depois"
-    #for j in range(0,len(img[0])):
-    #    print "\n"
-    #    for i in range(0,len(img[1])):
-    #        print img[j][i]
     IDtime=str(time.time())
-    #fits.writeto(ID+".test.fits",img.astype(float),header=None)
     pixels=np.where(image_ps>0)
     if opt['world_coord']=='True':
         if opt['out_type']=='cutout': 
@@ -658,7 +570,6 @@ def plot_mediatrixapl(image_name,_id='', keydots=False,circle=True, save=True, o
             os.system(" rm "+image_name_ps)
     else:
         FitsPlot = aplpy.FITSFigure(img)
-        #print " entrando no modo np array"
     smallest = np.amin(img)
     biggest = np.amax(img)
 
@@ -675,31 +586,15 @@ def plot_mediatrixapl(image_name,_id='', keydots=False,circle=True, save=True, o
             FitsPlot.show_grayscale(pmin=opt['pmin'], pmax=opt['pmax'],invert=opt['invert'])
         else:
             FitsPlot.show_grayscale(invert=opt['invert'])
-    #for i in range(0,100):
-    #    print opt['invert']
-    #    FitsPlot.show_grayscale(pmin=i*0.01, pmax=1,invert=False)
-    #    FitsPlot.save("mediatrix_aplpy_withcuts/"+ID+"scaleMin"+str(i*0.01)+"Max"+str(1)+".png")
-    #FitsPlot.show_grayscale(vmin=opt['vmin'], vmax=opt['vmax'],invert=opt['invert'])
-    #print biggest
-    #FitsPlot.save("mediatrix_aplpy_withcuts/"+IDtime+"scaleMin"+str(0)+"Max"+str(biggest)+".png")
     Length=0
-    
-      
     if keydots==True:
-        #print pixels[0]
         pixels=np.array(pixels)
-        #print pixels[0]
-        #print type(pixels[0])
-        #pixels[0]=pixels[0]+1
-        #pixels[1]=pixels[1]+1
         E1,E2=get_extrema_2loops(pixels[0], pixels[1], 0 )
         Area=len(pixels[1])
         p1=pixels[0][E1]+ pixels[1][E1]*1j # the extreme points p_1 and p_2
         p2=pixels[0][E2]+ pixels[1][E2]*1j
-        
         keydots=[p1,p2]
         keydots=find_keydots_c(p1,p2,pixels,image_ps,keydots,Area, method=opt['method'],alpha=opt['alpha'],near_distance=opt['near_distance'],max_level=opt['max_level'])
-        
   
         if use_extremes==False:
             if len(keydots)>3:
@@ -728,9 +623,6 @@ def plot_mediatrixapl(image_name,_id='', keydots=False,circle=True, save=True, o
         x_circ=[pixels[0][E1]+1,mediatrix_data['center'].real+1,pixels[0][E2]+1] #due to the image origin is at 1,1 not 0,0 like the matrix coordinates
         y_circ=[pixels[1][E1]+1,mediatrix_data['center'].imag+1,pixels[1][E2]+1] #due to the image origin is at 1,1 not 0,0 like the matrix coordinates
         FitsPlot.show_markers(y_circ,x_circ,c='g',marker='D',zorder=500)
-        #print "as coordenadas sao y, x"
-        #print mediatrix_data['center'].imag
-        #print mediatrix_data['center'].real
         p1_vec=[pixels[0][E1],pixels[1][E1]] # the extreme points p_1 and p_2
         p2_vec=[pixels[0][E2],pixels[1][E2]]
         p3_vec=[mediatrix_data['center'].real+1,mediatrix_data['center'].imag+1] #due to the image origin is at 1,1 not 0,0 like the matrix coordinates
@@ -739,24 +631,8 @@ def plot_mediatrixapl(image_name,_id='', keydots=False,circle=True, save=True, o
 
         if r>0:
             FitsPlot.show_markers(np.array([p3_vec[1], y_c]), np.array([p3_vec[0], x_c]), layer=False, zorder=499,c='g',marker='.')
-            #try: # circle works only in world coord
-            #    xw,yw=FitsPlot.pixel2world(x_c,y_c)
-                #print "this is the world coord"
-                #print [xw,yw]
-            #    xE1=pixels[0][E1]
-            #    yE1=pixels[1][E1]
-            #    xwE1,ywE1=FitsPlot.pixel2world(xE1,yE1)
-            #    rw=sqrt((xw-xwE1)**2+(yw-ywE1)**2) #that relation is due to small angles
-            #    FitsPlot.show_circles(yw, xw, rw, layer=False, zorder=499)
-            #except:
-            #    print "No WCS: Impossible to plot circle"
-        else:
+         else:
             print "impossible to define a circle "
-    
-
-
-        #A.scatter(keyY, keyX, s=20, c='b', marker='s')
-
     
     for i in range(0,len(mediatrix_data['origin'])):
         origin_x=mediatrix_data['origin'][i].real+1 #due to the image origin is at 1,1 not 0,0 like the matrix coordinates
@@ -771,26 +647,8 @@ def plot_mediatrixapl(image_name,_id='', keydots=False,circle=True, save=True, o
         Length=Length+sqrt(Length_aux)
         d_x= end_x - origin_x
         d_y= end_y - origin_y
-        #arr = Arrow(origin_y, origin_x, d_y, d_x, width=0.05*Length, fc=colors['vector'], ec='none',zorder=1000)
-    #    print "vectors"
-    #    print origin_x
-    #    print origin_y
         FitsPlot.show_arrows(origin_y, origin_x, d_y, d_x,zorder=502 )
    
-    #xmin, xmax = xlim()
-    #ymin, ymax = ylim()
-    #min_inc_axis=40
-    #x_axis_length=(xmax+1*Length)-(xmin-1*Length)
-    #y_axis_length=(ymax+1*Length)-(ymin-1*Length)
-    #if  x_axis_length<min_inc_axis
-    #A.axis("equal")
-    #A.set_xlim(xmin-1*Length,xmax+1*Length)
-    #A.set_ylim(ymin-1*Length,ymax+1*Length)    
-    #ylabel("Y")
-    #xlabel("X")
-    #A.axis("equal")
-    #title(out_title) 
-    
     if save==True:
         FitsPlot.save(out_image)
         del FitsPlot
@@ -802,5 +660,7 @@ def plot_mediatrixapl(image_name,_id='', keydots=False,circle=True, save=True, o
     else:
         return FitsPlot, mediatrix_data, image_ps.copy() 
 
-
+def width_ellipse(L,Area):
+	W=Area/(atan(1)*L)
+	return W
 

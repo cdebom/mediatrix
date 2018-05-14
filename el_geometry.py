@@ -4,6 +4,69 @@ The following functions execute elementary geometrical calculations.
 
 from math import sin, cos ,sqrt, fabs, atan, tan 
 
+def get_line_point_nearest2point(p,theta,c):
+    """
+    This Function calculates the distance from a line to a point.
+
+    Input:
+      - p       [float,float]  : a point p=[x,y]. 	
+      - theta          float : angle defined by line angular coefficient.
+      - c              float : linear coefficient.
+    Output:
+     - [float,flot] : The coordinates of the nearest point in the line to the point p.
+
+    """
+    if(theta!=2*atan(1)) and (theta!=0.):
+        a=tan(theta)
+        m=-1./a
+        b=p[1]-m*p[0]
+        x=(c-b)/(m-a)
+        y=a*x+c
+        dx=p[0]-x
+        dy=p[1]-y
+        return x,y
+                
+    elif (theta==2*atan(1)): # case of the perpendicular bisector is a vertical line a-->inf.
+        dx=fabs(p[0]-c)
+        return c,p[1]
+
+    elif theta==0.: # case of the perpendicular bisector is a horizontal line a-->0
+        dy=fabs(p[1]-c)
+        return p[0],c
+
+def two_points_to_line(p1,p2): 
+    """
+    Function that calculates the line defined by two points  p_i=[x_i,y_i].
+    
+    Input:
+     - p1      [float,float] : first point.
+     - p2      [float,float] : second point.
+        
+    Output:
+     - float : angle defined by angular coefficient.
+     - float : linear coefficient.
+     
+    """
+
+    x1=p1[0]
+    y1=p1[1]	
+    x2=p2[0]
+    y2=p2[1]	
+    Dy=float(y2-y1)
+    Dx=float(x2-x1)
+    b1=0
+    My=0
+    Mx=0
+    if (fabs(Dx)>0): 
+        a=(Dy)/(Dx)
+        theta=atan(a)
+        b1=y1-a*x1			
+    elif Dx==0:
+        a=0
+        theta=2*atan(1)
+        b1=x1		
+            
+    return theta,b1	
 
 
 def get_length_c(points): 
