@@ -1,5 +1,5 @@
 # mediatrix
-Mediatrix Filamentation is an iterative algorithm to automaticaly define features in thin elongated objects, particulary suited for curved shapes. It can estimate the length, width and curvature center.
+Mediatrix Filamentation is an iterative algorithm which automaticaly extract features in thin and elongated objects, particulary suited for curved shapes. It can estimate the length, width and curvature center.
 This repo contains the code used in the following papers:
 
 https://arxiv.org/abs/1212.1799
