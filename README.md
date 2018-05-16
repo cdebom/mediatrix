@@ -12,5 +12,6 @@ For an example of usage see mediatrix_example.ipynb. The dependencies are:
    * matplotlib
    * astropy
    * pythn-opencv (cv2, if you want support for png, tiff or any other non fits image format)
+
 This is a standalone version that uses functions derived from bit and sltools libs developed by Clécio De Bom (cdebom) , Carlos H. Brandt (chbrandt) and Martin Makler (martinmakler). The authors would like to thank Cristina Furlanetto.
 
