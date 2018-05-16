@@ -3,6 +3,7 @@ Mediatrix Filamentation is an iterative algorithm which automaticaly extract fea
 This repo contains the code used in the following papers:
 
 https://arxiv.org/abs/1212.1799
+
 https://arxiv.org/abs/1607.04644
 
 For an example of usage see mediatrix_example.ipynb. The dependencies are:
